@@ -260,6 +260,90 @@
     if (n) Overlay.log(`Filtro "não lidas" religado em ${n} seção(ões).`, "ok");
   }
 
+  // ---------------------------------------------------------------------------
+  // Setas de recolher/expandir das seções. Seção recolhida NÃO renderiza seus
+  // espaços no DOM — então some do alcance da extensão. Abre para trabalhar e
+  // restaura o estado original no fim. O controle é um div[role="button"] com
+  // aria-expanded ("false"=recolhida), sem texto, na mesma linha do nome (o
+  // botão ⋮ "Ações da seção" também tem aria-expanded, mas é do menu — excluído).
+  // ---------------------------------------------------------------------------
+  function secoesHeaders() {
+    return [...document.querySelectorAll('div[role="button"]')].filter((b) => {
+      const t = (b.innerText || "").replace(/\n/g, " ").trim();
+      if (!t || t.length > 40 || /^\d+$/.test(t)) return false;
+      const n = semAcento(t);
+      const eCatchall = n === "espacos" || n === "spaces";
+      if (CABECALHOS_FIXOS.includes(n) && !eCatchall) return false; // não mexe em Atalhos/DMs/Apps
+      return eCatchall || temAcoesSecaoPerto(b);
+    });
+  }
+
+  function controleRecolher(header) {
+    let c = header;
+    for (let i = 0; i < 4 && c; i++) {
+      const ctrl = [...c.querySelectorAll('[role="button"][aria-expanded]')].find((e) =>
+        !/acoes da secao|section options/.test(semAcento(e.getAttribute("aria-label") || "")));
+      if (ctrl) return ctrl;
+      c = c.parentElement;
+    }
+    return null;
+  }
+
+  // Estado original das seções: nome -> aria-expanded ("true"/"false"), para
+  // restaurar exatamente (o arraste do Chat minimiza todas as seções no meio).
+  function mapaSecoesExpand() {
+    const m = new Map();
+    for (const h of secoesHeaders()) {
+      const nome = (h.innerText || "").replace(/\n/g, " ").trim();
+      const ctrl = controleRecolher(h);
+      if (ctrl) m.set(semAcento(nome), ctrl.getAttribute("aria-expanded"));
+    }
+    return m;
+  }
+
+  async function abrirTodasSecoes() {
+    let n = 0;
+    for (const h of secoesHeaders()) {
+      const ctrl = controleRecolher(h);
+      if (ctrl && ctrl.getAttribute("aria-expanded") === "false") { clicar(ctrl); n++; await dorme(250); }
+    }
+    if (n) { Overlay.log(`Abri ${n} seção(ões) recolhida(s) para poder trabalhar.`); await dorme(400); }
+  }
+
+  async function restaurarSecoes(orig) {
+    if (!orig || !orig.size) return;
+    let n = 0;
+    for (const h of secoesHeaders()) {
+      const nome = semAcento((h.innerText || "").replace(/\n/g, " ").trim());
+      if (!orig.has(nome)) continue;
+      const ctrl = controleRecolher(h);
+      if (ctrl && ctrl.getAttribute("aria-expanded") !== orig.get(nome)) { clicar(ctrl); n++; await dorme(250); }
+    }
+    if (n) Overlay.log(`Restaurei ${n} seção(ões) ao estado original.`, "ok");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Preparar (no "Ler") e restaurar (no "Aplicar"). O estado original é guardado
+  // no módulo, entre as duas mensagens: "Ler" prepara e DEIXA preparado; "Aplicar"
+  // faz o trabalho e devolve tudo ao original.
+  // ---------------------------------------------------------------------------
+  let _estadoOriginalSecoes = null; // Map nome->aria-expanded (capturado 1x no Ler)
+  let _filtrosDesligados = [];      // seções onde desliguei "não lidas"
+
+  async function prepararDOM() {
+    if (_estadoOriginalSecoes === null) _estadoOriginalSecoes = mapaSecoesExpand();
+    const desligados = await desligarNaoLidas();
+    for (const s of desligados) _filtrosDesligados.push(s);
+    await abrirTodasSecoes();
+  }
+
+  async function restaurarDOM() {
+    await restaurarSecoes(_estadoOriginalSecoes);
+    await religarNaoLidas(_filtrosDesligados);
+    _estadoOriginalSecoes = null;
+    _filtrosDesligados = [];
+  }
+
   // Sufixo de tipo que o Chat concatena no texto do link ("… Espaço Abrir em um
   // pop-up Opções") e badge de não lidas no começo. Removidos para sobrar o nome.
   const TIPO_SUFIXO = /\s+(Espaço|Espaços|Space|Spaces|Conversa em grupo|Group conversation|Mensagem direta|Direct message)\b[\s\S]*$/i;
@@ -470,10 +554,10 @@
     Overlay.log("Lendo espaços da barra lateral…");
     let movidos = 0, pulados = 0, falhas = 0, jaOk = 0;
 
-    // Filtro "mensagens não lidas": se ligado numa seção, esconde do DOM os
-    // espaços já lidos dela — sem desligar, a extensão não os leria nem moveria.
-    // Desliga (guardando as seções), trabalha, e religa os mesmos no fim (finally).
-    const filtrosNaoLidas = await desligarNaoLidas();
+    // Garante o DOM pronto (caso "Aplicar" seja clicado sem "Ler" antes, ou o
+    // estado tenha mudado): desliga "não lidas" e abre as seções recolhidas.
+    // O "Ler" já costuma ter feito isso; aqui é idempotente. Restaura no finally.
+    await prepararDOM();
     try {
 
     // Passo 1 — ordem alfabética (andaime).
@@ -553,7 +637,7 @@
     return finalizar();
 
     } finally {
-      await religarNaoLidas(filtrosNaoLidas);
+      await restaurarDOM();
     }
 
     function finalizar() {
@@ -572,6 +656,7 @@
         if (msg.tipo === "ping") {
           sendResponse({ ok: true });
         } else if (msg.tipo === "ler-espacos") {
+          await prepararDOM(); // início: desliga "não lidas" e abre seções recolhidas (deixa preparado; o "aplicar" restaura)
           const espacos = lerEspacos().map((e) => e.nome);
           sendResponse({ ok: true, espacos });
         } else if (msg.tipo === "aplicar") {
