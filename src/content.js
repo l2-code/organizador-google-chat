@@ -40,7 +40,7 @@
   // OVERLAY de progresso — a "falha visível". Fica no canto e loga tudo.
   // ===========================================================================
   const Overlay = (function () {
-    let box, logEl, cancelado = false;
+    let box, logEl, cancelado = false, fechado = false;
     function garantir() {
       if (box) return;
       box = document.createElement("div");
@@ -52,13 +52,28 @@
         "box-shadow:0 8px 30px rgba(0,0,0,.4)", "overflow:hidden", "display:flex", "flex-direction:column"
       ].join(";");
       const head = document.createElement("div");
-      head.style.cssText = "padding:10px 12px;background:#2b2b2b;font-weight:600;display:flex;justify-content:space-between;align-items:center";
-      head.innerHTML = "<span>Organizando barra lateral…</span>";
+      head.style.cssText = "padding:10px 12px;background:#2b2b2b;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px";
+      const titulo = document.createElement("span");
+      titulo.textContent = "Organizando barra lateral…";
+      titulo.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+      const acoes = document.createElement("div");
+      acoes.style.cssText = "display:flex;gap:6px;align-items:center;flex:0 0 auto";
       const btn = document.createElement("button");
       btn.textContent = "Parar";
       btn.style.cssText = "background:#c0392b;color:#fff;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px";
       btn.onclick = () => { cancelado = true; log("⏹ Parada solicitada. Encerrando após o passo atual…"); };
-      head.appendChild(btn);
+      const fechar = document.createElement("button");
+      fechar.textContent = "✕";
+      fechar.title = "Fechar";
+      fechar.setAttribute("aria-label", "Fechar");
+      fechar.style.cssText = "background:transparent;color:#bbb;border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px;line-height:1";
+      fechar.onmouseenter = () => (fechar.style.color = "#fff");
+      fechar.onmouseleave = () => (fechar.style.color = "#bbb");
+      fechar.onclick = () => { fechado = true; cancelado = true; if (box) { box.remove(); box = null; } };
+      acoes.appendChild(btn);
+      acoes.appendChild(fechar);
+      head.appendChild(titulo);
+      head.appendChild(acoes);
       logEl = document.createElement("div");
       logEl.style.cssText = "padding:10px 12px;overflow:auto;flex:1";
       box.appendChild(head);
@@ -66,6 +81,7 @@
       document.body.appendChild(box);
     }
     function log(msg, tipo) {
+      if (fechado) return; // usuário fechou o painel — não ressuscita no meio
       garantir();
       const line = document.createElement("div");
       line.style.cssText = "margin:2px 0;white-space:pre-wrap;" +
@@ -76,7 +92,7 @@
     }
     return {
       log,
-      reset() { cancelado = false; garantir(); logEl.innerHTML = ""; },
+      reset() { cancelado = false; fechado = false; garantir(); logEl.innerHTML = ""; },
       cancelado: () => cancelado,
       fim(msg) { log(msg, "ok"); }
     };
@@ -182,6 +198,68 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Filtro "mensagens não lidas". Quando LIGADO, o Chat esconde do DOM os espaços
+  // já lidos — a extensão não os leria nem moveria (era o "não funcionou" de quem
+  // tinha a barra em modo só-não-lidas). Estratégia: desligar antes de trabalhar,
+  // guardar ONDE estava ligado, e religar exatamente esses no fim.
+  // ---------------------------------------------------------------------------
+  function switchesNaoLidas() {
+    const out = [], vistas = new Set();
+    for (const s of document.querySelectorAll('[role="switch"]')) {
+      const rot = semAcento((s.getAttribute("aria-label") || "") + " " + (s.innerText || ""));
+      if (!(rot.includes("nao lida") || rot.includes("unread"))) continue;
+      // O Chat mantém cópias do DOM; deduplica por seção+estado para não clicar
+      // duas vezes no mesmo toggle. (Não filtra por visibilidade: o toggle só
+      // aparece no hover, mas o elemento existe e responde ao clique sintético.)
+      const chave = semAcento(secaoDoSwitch(s) || "?") + "|" + s.getAttribute("aria-checked");
+      if (vistas.has(chave)) continue;
+      vistas.add(chave);
+      out.push(s);
+    }
+    return out;
+  }
+
+  // O toggle fica no cabeçalho de UMA seção; todos têm o mesmo aria-label, então
+  // a identidade para religar o mesmo é o NOME da seção onde o switch está.
+  function secaoDoSwitch(sw) {
+    let c = sw.parentElement;
+    for (let i = 0; i < 6 && c; i++) {
+      const h = [...c.querySelectorAll('div[role="button"]')].find((b) => {
+        const t = (b.innerText || "").replace(/\n/g, " ").trim();
+        if (!t || t.length > 40 || /^\d+$/.test(t)) return false;
+        return CABECALHOS_FIXOS.includes(semAcento(t)) || temAcoesSecaoPerto(b);
+      });
+      if (h) return (h.innerText || "").replace(/\n/g, " ").trim();
+      c = c.parentElement;
+    }
+    return null;
+  }
+
+  async function desligarNaoLidas() {
+    const ligados = switchesNaoLidas().filter((s) => s.getAttribute("aria-checked") === "true");
+    const secoes = [];
+    for (const s of ligados) { secoes.push(secaoDoSwitch(s)); clicar(s); await dorme(300); }
+    if (ligados.length) {
+      Overlay.log(`Filtro "não lidas" estava ligado — desliguei em ${ligados.length} seção(ões) para ver todos os espaços (religo no fim).`);
+      await dorme(500);
+    }
+    return secoes; // nomes das seções onde estava ligado (para religar os mesmos)
+  }
+
+  async function religarNaoLidas(secoes) {
+    if (!secoes || !secoes.length) return;
+    const restam = secoes.slice();
+    let n = 0;
+    for (const s of switchesNaoLidas()) {
+      if (s.getAttribute("aria-checked") !== "false") continue;
+      const sec = secaoDoSwitch(s);
+      const i = restam.findIndex((x) => semAcento(x || "") === semAcento(sec || ""));
+      if (i >= 0) { clicar(s); restam.splice(i, 1); n++; await dorme(300); }
+    }
+    if (n) Overlay.log(`Filtro "não lidas" religado em ${n} seção(ões).`, "ok");
+  }
+
   // Sufixo de tipo que o Chat concatena no texto do link ("… Espaço Abrir em um
   // pop-up Opções") e badge de não lidas no começo. Removidos para sobrar o nome.
   const TIPO_SUFIXO = /\s+(Espaço|Espaços|Space|Spaces|Conversa em grupo|Group conversation|Mensagem direta|Direct message)\b[\s\S]*$/i;
@@ -200,8 +278,13 @@
     return [...document.querySelectorAll('[role="list"]')].filter((n) => {
       const l = semAcento(n.getAttribute("aria-label") || "");
       const eConversa = l.includes("lista de conversas") || l.includes("conversation list") || l.includes("list of conversations");
+      // A seção catch-all "Espaços" (espaços ainda sem seção) tem aria "Lista de
+      // espaços" — NÃO "lista de conversas". Sem incluí-la, os espaços soltos ali
+      // (ex.: "[OLD]…" que sobraram) nunca eram lidos, planejados nem movidos.
+      const eEspacos = l.includes("lista de espacos") || l.includes("spaces list") || l.includes("list of spaces") || l.includes("space list");
       const eDM = l.includes("mensagens diretas") || l.includes("direct message");
-      return eConversa && !eDM;
+      const eApps = l.includes("lista de apps") || l.includes("apps list") || l.includes("list of apps");
+      return (eConversa || eEspacos) && !eDM && !eApps;
     });
   }
 
@@ -246,9 +329,18 @@
     for (const el of nodes) {
       if (el.matches('div[role="button"]')) {
         const t = (el.innerText || "").replace(/\n/g, " ").trim();
-        if (t && t.length <= 40 && !/^\d+$/.test(t) &&
-            !CABECALHOS_FIXOS.includes(semAcento(t)) && temAcoesSecaoPerto(el)) {
-          atual = t; // entrou numa nova seção
+        const norm = semAcento(t);
+        if (t && t.length <= 40 && !/^\d+$/.test(t)) {
+          if (CABECALHOS_FIXOS.includes(norm)) {
+            // Cabeçalho FIXO (a catch-all "Espaços", Mensagens diretas, Apps…):
+            // saímos das seções personalizadas. Zera o corrente para que o espaço
+            // que estiver aqui NÃO herde a última seção custom. Sem isto, um
+            // "[OLD]…" parado em "Espaços" logo abaixo da seção OLD era lido como
+            // "já no lugar" e nunca movia.
+            atual = null;
+          } else if (temAcoesSecaoPerto(el)) {
+            atual = t; // entrou numa seção personalizada
+          }
         }
       } else {
         const nome = nomeDoLink(el);
@@ -376,6 +468,13 @@
   async function aplicar(config, decisoes) {
     Overlay.reset();
     Overlay.log("Lendo espaços da barra lateral…");
+    let movidos = 0, pulados = 0, falhas = 0, jaOk = 0;
+
+    // Filtro "mensagens não lidas": se ligado numa seção, esconde do DOM os
+    // espaços já lidos dela — sem desligar, a extensão não os leria nem moveria.
+    // Desliga (guardando as seções), trabalha, e religa os mesmos no fim (finally).
+    const filtrosNaoLidas = await desligarNaoLidas();
+    try {
 
     // Passo 1 — ordem alfabética (andaime).
     try {
@@ -416,7 +515,6 @@
     // Fotografa a seção atual de cada espaço UMA vez: só o espaço movido muda
     // de seção durante a rodada, e não o revisito.
     const secaoAtual = secaoAtualDosEspacos();
-    let movidos = 0, pulados = 0, falhas = 0, jaOk = 0;
     for (const p of plano) {
       if (Overlay.cancelado()) break;
       if (!p.secao) { // ignorar / perguntar sem decisão
@@ -453,6 +551,10 @@
     }
 
     return finalizar();
+
+    } finally {
+      await religarNaoLidas(filtrosNaoLidas);
+    }
 
     function finalizar() {
       Overlay.fim(`Concluído. Movidos: ${movidos} · Já no lugar: ${jaOk} · Pulados: ${pulados} · Falhas: ${falhas}.`);

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Organizador da barra lateral do Google Chat",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Agrupa os espaços do Google Chat em seções por prefixo do nome, em um clique. Configurável por regras (JSON importável/exportável).",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjENTDYYkotlY1+LXHXv0u6VE5/SuIW6hMYVdpBhvDDdsvGCuU+v2IrwIxlX5mDRdN26rdxAGQiKEcPJYLivCA6EO6ssqCEJxFSI2s9dF4jgaEQ6PnPcyDlTm8U2hIXoWbUHt4+s4/EipCm8vbf83b8Vjq7MNzjnb4j1NpECiA4XyvZZQXLBG7YJLTxE2FpZWbPPcoA7hnPBa/Y1Aakv2o/eKA2BqGbyKUGqd1ZLgOb8orgKAmRpouLhMVjF09aJvegMEtWEC+T2cLyJysOU48Tza+dXEJCw3G50lT6D++hhGMWvAccORihreMGy/Foi60kk23kflpaxPcnlL5cmkkQIDAQAB",
   "update_url": "https://raw.githubusercontent.com/l2-code/organizador-google-chat/main/updates.xml",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
     "https://chat.google.com/*",

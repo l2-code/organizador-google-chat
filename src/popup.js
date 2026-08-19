@@ -87,11 +87,34 @@
     });
   }
 
+  // Injeta o content script sob demanda. Necessário quando a aba do Chat já
+  // estava aberta ANTES da extensão instalar (força-instalação) — aí o script
+  // não foi injetado e a mensagem não tem quem responder.
+  async function injetar(tabId) {
+    if (!chrome.scripting) return false;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["src/config.js", "src/content.js"] });
+      return true;
+    } catch (_) { return false; }
+  }
+
+  // Envia; se não houver content script na aba, injeta e tenta uma vez mais.
+  async function enviarResiliente(tabId, msg) {
+    let resp = await enviar(tabId, msg);
+    const semReceptor = resp && !resp.ok &&
+      /receiving end does not exist|could not establish connection|sem resposta/i.test(resp.erro || "");
+    if (semReceptor && await injetar(tabId)) {
+      await new Promise((r) => setTimeout(r, 400));
+      resp = await enviar(tabId, msg);
+    }
+    return resp;
+  }
+
   async function preview() {
     setStatus("Lendo espaços…");
     const tab = await abaChat();
     if (!tab) return setStatus("Abra o Google Chat (chat.google.com) na aba ativa.", "erro");
-    const resp = await enviar(tab.id, { tipo: "ler-espacos" });
+    const resp = await enviarResiliente(tab.id, { tipo: "ler-espacos" });
     if (!resp.ok) return setStatus("Não consegui ler a aba. Recarregue o Chat e tente de novo. (" + resp.erro + ")", "erro");
     const nomes = resp.espacos || [];
     if (!nomes.length) return setStatus("Nenhum espaço lido. A lista de espaços está visível?", "erro");
@@ -178,7 +201,7 @@
     if (!ultimoPreview) return setStatus('Clique em "Ler espaços da aba" antes.', "erro");
     setStatus("Aplicando… acompanhe o painel na página do Chat.");
     $("#btnAplicar").disabled = true;
-    const resp = await enviar(tab.id, {
+    const resp = await enviarResiliente(tab.id, {
       tipo: "aplicar",
       config: config,
       decisoes: ultimoPreview.decisoes
