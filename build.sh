@@ -13,6 +13,7 @@ rm -f "dist/$NOME"
 zip -r "dist/$NOME" \
   manifest.json \
   src \
+  icons \
   preset-l2.json \
   README.md \
   -x '*.DS_Store'

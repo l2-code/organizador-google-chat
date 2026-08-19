@@ -140,16 +140,41 @@
     }
   }
 
+  // Rótulos que NÃO são espaços — barra superior, conta, apps, dicas, atalhos.
+  // A leitura pega qualquer aria-label; este bloqueio tira o ruído da tela.
+  const NAO_E_ESPACO = /^(logotipo|logo\b|google apps|aplicativos do google|conta do google|google account|conta:|configura|settings|notifica|menu\b|menu principal|main menu|pesquisar|search|abrir no app|open in app|novo chat|new chat|nova conversa|in[íi]cio|home|men[çc][õo]es|mentions|com estrela|starred|mensagens diretas|direct messages|atalhos|shortcuts|ajuda|help|feedback|press?ione a tecla|press tab|barra lateral|navega[çc])/i;
+
+  // Acha o container da barra lateral (a lista de espaços), para não ler a
+  // barra superior. Escolhe a região de navegação com mais itens "[prefixo]".
+  function acharSidebar() {
+    const navs = document.querySelectorAll('nav,[role="navigation"],[role="tree"],[role="list"]');
+    let melhor = null, melhorScore = -1;
+    for (const n of navs) {
+      if (n.closest('[role="banner"],header')) continue;
+      const labels = n.querySelectorAll("[aria-label]");
+      let score = 0;
+      for (const el of labels) {
+        const t = (el.getAttribute("aria-label") || "").trim();
+        if (/^\s*\[/.test(t)) score++; // conta itens com colchete = espaços da L2
+      }
+      if (score > melhorScore) { melhorScore = score; melhor = n; }
+    }
+    return melhorScore > 0 ? melhor : null;
+  }
+
   // Lê os espaços da barra lateral: retorna [{el, nome}]. Ancora em role/aria.
   function lerEspacos() {
     const vistos = new Map();
-    // Espaços costumam ser links/opções com aria-label = nome do espaço.
-    const cands = document.querySelectorAll('[role="listitem"] [aria-label], a[aria-label], [role="option"][aria-label], [role="treeitem"][aria-label]');
+    const raiz = acharSidebar() || document; // escopo: só a barra lateral
+    const cands = raiz.querySelectorAll('[role="listitem"] [aria-label], a[aria-label], [role="option"][aria-label], [role="treeitem"][aria-label]');
     for (const el of cands) {
       const nome = (el.getAttribute("aria-label") || "").trim();
       if (!nome) continue;
-      // Filtra ruído óbvio (botões, cabeçalhos).
+      // Fora barra superior/cabeçalho e ruído de UI.
+      if (el.closest('[role="banner"],header')) continue;
+      if (NAO_E_ESPACO.test(nome)) continue;
       if (/^(mais opc|more option|adicionar|add |nova |new )/i.test(nome)) continue;
+      if (nome.length > 120) continue; // dicas/tooltips longos não são espaços
       const linha = el.closest('[role="listitem"],[role="option"],[role="treeitem"]') || el;
       if (!vistos.has(nome)) vistos.set(nome, linha);
     }

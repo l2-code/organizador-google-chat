@@ -24,9 +24,11 @@ Ainda não está na Chrome Web Store; instala-se como extensão descompactada, a
 1. Baixe o arquivo **`organizador-google-chat.zip`** da [página de Releases](../../releases/latest)
 2. **Descompacte** o ZIP numa pasta que vá ficar no computador (ex.: `Documentos/extensao-chat`). O Chrome carrega a pasta descompactada, não o ZIP — se apagar a pasta, a extensão para de funcionar
 3. Abra o Chrome em **`chrome://extensions`**
-4. Ligue o **Modo do desenvolvedor** (canto superior direito)
+4. **Ligue o "Modo do desenvolvedor"** — a chave fica no **canto superior direito** da página. Sem ela, o botão "Carregar sem compactação" nem aparece
 5. Clique em **Carregar sem compactação** (*Load unpacked*) e selecione a **pasta descompactada** (a que contém o `manifest.json`)
-6. A extensão aparece na lista. Fixe o ícone na barra (ícone de peça de quebra-cabeça → alfinete)
+6. A extensão aparece na lista, com o ícone do Lincaz. Fixe na barra (ícone de peça de quebra-cabeça → alfinete)
+
+> **Perfil gerenciado pela empresa:** se o topo da página disser "Seu perfil é gerenciado por l2code.com.br", a política do Google Workspace pode bloquear extensões descompactadas. Se o "Carregar sem compactação" estiver desabilitado, fale com o admin — a alternativa é publicar na Chrome Web Store (privada da organização).
 
 > Para atualizar quando sair versão nova: baixe o ZIP novo, descompacte por cima da mesma pasta e clique no ↻ do card em `chrome://extensions`.
 
