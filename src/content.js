@@ -235,6 +235,29 @@
     return nomes;
   }
 
+  // Mapa nome-do-espaço → nome-da-seção-atual, para NÃO mover o que já está no
+  // lugar (respeita quem organizou na mão e torna a re-execução segura).
+  // Percorre a barra em ordem de documento: cada espaço herda o último
+  // cabeçalho de seção visto antes dele.
+  function secaoAtualDosEspacos() {
+    const map = new Map();
+    const nodes = document.querySelectorAll('div[role="button"], [role="list"] [role="listitem"] [role="link"]');
+    let atual = null;
+    for (const el of nodes) {
+      if (el.matches('div[role="button"]')) {
+        const t = (el.innerText || "").replace(/\n/g, " ").trim();
+        if (t && t.length <= 40 && !/^\d+$/.test(t) &&
+            !CABECALHOS_FIXOS.includes(semAcento(t)) && temAcoesSecaoPerto(el)) {
+          atual = t; // entrou numa nova seção
+        }
+      } else {
+        const nome = nomeDoLink(el);
+        if (nome && atual && !map.has(nome)) map.set(nome, atual);
+      }
+    }
+    return map;
+  }
+
   // ===========================================================================
   // Passos
   // ===========================================================================
@@ -385,13 +408,20 @@
     }
 
     // Passo 3 — arrastar.
-    let movidos = 0, pulados = 0, falhas = 0;
+    // Fotografa a seção atual de cada espaço UMA vez: só o espaço movido muda
+    // de seção durante a rodada, e não o revisito.
+    const secaoAtual = secaoAtualDosEspacos();
+    let movidos = 0, pulados = 0, falhas = 0, jaOk = 0;
     for (const p of plano) {
       if (Overlay.cancelado()) break;
       if (!p.secao) { // ignorar / perguntar sem decisão
         pulados++;
         if (p.motivo === "perguntar") Overlay.log(`? Sem decisão, deixei quieto: "${p.nome}"`);
         continue;
+      }
+      // Já está na seção certa? Não mexe (respeita organização manual / re-execução).
+      if (semAcento(secaoAtual.get(p.nome) || "") === semAcento(p.secao)) {
+        jaOk++; continue;
       }
       // Reconfere posição atual do espaço (lista virtualizada muda).
       const atuais = lerEspacos();
@@ -420,9 +450,9 @@
     return finalizar();
 
     function finalizar() {
-      Overlay.fim(`Concluído. Movidos: ${movidos} · Pulados: ${pulados} · Falhas: ${falhas}.`);
+      Overlay.fim(`Concluído. Movidos: ${movidos} · Já no lugar: ${jaOk} · Pulados: ${pulados} · Falhas: ${falhas}.`);
       if (falhas) Overlay.log("Os itens com ✗ podem precisar de arraste manual. Nada foi renomeado ou removido.", "erro");
-      return { movidos, pulados, falhas };
+      return { movidos, jaOk, pulados, falhas };
     }
   }
 
