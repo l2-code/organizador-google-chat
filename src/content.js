@@ -86,34 +86,76 @@
   // Helpers de DOM ancorados em texto / aria — nunca em classe.
   // ===========================================================================
 
-  // Todos os elementos "clicáveis de menu" cujo texto casa com alguma das opções.
-  function acharItemPorTexto(textos) {
+  // Item de menu cujo texto casa com uma das opções. `evitar` (regex normalizada)
+  // descarta parecidos — ex.: "Criar seção" não pode pegar "Criar seção de reunião".
+  // Prefere igualdade exata; só cai em "contém" se não houver exato.
+  function acharItemPorTexto(textos, evitar) {
     const alvos = textos.map(semAcento);
-    const cands = document.querySelectorAll('[role="menuitem"],[role="menuitemradio"],[role="option"],button,[role="button"]');
+    const cands = [...document.querySelectorAll('[role="menuitem"],[role="menuitemradio"],[role="option"],span,button,[role="button"]')];
+    const visivel = (el) => el.offsetParent !== null || el.getClientRects().length;
+    const clicavel = (el) => el.closest('[role="menuitem"],[role="menuitemradio"],[role="option"],button,[role="button"]') || el;
+    // 1ª passada: igualdade exata
     for (const el of cands) {
       const t = semAcento(el.innerText || el.getAttribute("aria-label") || "");
-      if (!t) continue;
-      if (alvos.some((a) => t === a || t.includes(a))) {
-        if (el.offsetParent !== null || el.getClientRects().length) return el;
-      }
+      if (!t || (evitar && evitar.test(t))) continue;
+      if (alvos.includes(t) && visivel(el)) return clicavel(el);
+    }
+    // 2ª passada: contém
+    for (const el of cands) {
+      const t = semAcento(el.innerText || el.getAttribute("aria-label") || "");
+      if (!t || (evitar && evitar.test(t))) continue;
+      if (alvos.some((a) => t.includes(a)) && visivel(el)) return clicavel(el);
     }
     return null;
   }
 
-  // Botão ⋮ (mais opções) da seção "Espaços".
-  function acharBotaoMenuEspacos() {
-    const alvos = TXT.espacos.map(semAcento);
-    const botoes = document.querySelectorAll('button,[role="button"]');
-    let melhor = null;
-    for (const b of botoes) {
-      const al = semAcento(b.getAttribute("aria-label") || b.getAttribute("data-tooltip") || "");
-      if (!al) continue;
-      const pareceMenu = /mais opc|more option|opcoes|options|menu/.test(al);
-      const mencionaEspacos = alvos.some((a) => al.includes(a));
-      if (pareceMenu && mencionaEspacos) return b;
-      if (pareceMenu && !melhor) melhor = b; // fallback: primeiro "mais opções"
+  // Nomes de cabeçalho que NÃO são seções de espaços (não devem virar destino
+  // nem contar como "seção existente").
+  const CABECALHOS_FIXOS = ["espacos", "spaces", "mensagens diretas", "direct messages",
+    "atalhos", "shortcuts", "ativo", "active", "apps", "aplicativos"].map(semAcento);
+
+  // Um cabeçalho de seção real tem, na mesma linha, o botão "Ações da seção".
+  // Isso separa o cabeçalho de botões da área de mensagens que teriam o mesmo texto.
+  function temAcoesSecaoPerto(el) {
+    let c = el;
+    for (let i = 0; i < 4 && c; i++) {
+      if (c.querySelector && [...c.querySelectorAll("button,[role=button]")].some((x) =>
+        /acoes da secao|section options/.test(semAcento(x.getAttribute("aria-label") || "")))) return true;
+      c = c.parentElement;
     }
-    return melhor;
+    return false;
+  }
+
+  // Cabeçalho de uma seção = div[role="button"] com o nome como texto, ancorado
+  // no botão "Ações da seção".
+  function cabecalhoDaSecao(nome) {
+    const alvo = semAcento(nome);
+    return [...document.querySelectorAll('div[role="button"]')].find(
+      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvo && temAcoesSecaoPerto(b)
+    ) || null;
+  }
+
+  // Botão ⋮ ("Ações da seção") da seção "Espaços" — onde ficam Criar seção,
+  // Classificar em ordem alfabética e Ordenar por mais recentes.
+  function acharBotaoMenuEspacos() {
+    const head = [...document.querySelectorAll('div[role="button"]')].find(
+      (b) => TXT.espacos.map(semAcento).includes(semAcento((b.innerText || "").trim()))
+    );
+    if (head) {
+      let cont = head;
+      for (let i = 0; i < 5 && cont; i++) {
+        const b = cont.querySelector && cont.querySelector("button");
+        const acao = cont.querySelector &&
+          [...cont.querySelectorAll("button,[role=button]")].find((x) =>
+            /acoes da secao|section options|mais opc|more option|opcoes|options/.test(
+              semAcento(x.getAttribute("aria-label") || "")));
+        if (acao) return acao;
+        cont = cont.parentElement;
+      }
+    }
+    // Fallback: primeiro botão "Ações da seção" da página.
+    return [...document.querySelectorAll("button,[role=button]")].find((x) =>
+      /acoes da secao|section options/.test(semAcento(x.getAttribute("aria-label") || ""))) || null;
   }
 
   // Abre o menu ⋮ dos Espaços e devolve o container do menu aberto.
@@ -140,58 +182,55 @@
     }
   }
 
-  // Rótulos que NÃO são espaços — barra superior, conta, apps, dicas, atalhos.
-  // A leitura pega qualquer aria-label; este bloqueio tira o ruído da tela.
-  const NAO_E_ESPACO = /^(logotipo|logo\b|google apps|aplicativos do google|conta do google|google account|conta:|configura|settings|notifica|menu\b|menu principal|main menu|pesquisar|search|abrir no app|open in app|novo chat|new chat|nova conversa|in[íi]cio|home|men[çc][õo]es|mentions|com estrela|starred|mensagens diretas|direct messages|atalhos|shortcuts|ajuda|help|feedback|press?ione a tecla|press tab|barra lateral|navega[çc])/i;
+  // Sufixo de tipo que o Chat concatena no texto do link ("… Espaço Abrir em um
+  // pop-up Opções") e badge de não lidas no começo. Removidos para sobrar o nome.
+  const TIPO_SUFIXO = /\s+(Espaço|Espaços|Space|Spaces|Conversa em grupo|Group conversation|Mensagem direta|Direct message)\b[\s\S]*$/i;
+  const BADGE_NAOLIDAS = /^\s*(\d+\s+)?(mensagens?\s+)?(não lidas?|nao lidas?|unread)\s*/i;
 
-  // Acha o container da barra lateral (a lista de espaços), para não ler a
-  // barra superior. Escolhe a região de navegação com mais itens "[prefixo]".
-  function acharSidebar() {
-    const navs = document.querySelectorAll('nav,[role="navigation"],[role="tree"],[role="list"]');
-    let melhor = null, melhorScore = -1;
-    for (const n of navs) {
-      if (n.closest('[role="banner"],header')) continue;
-      const labels = n.querySelectorAll("[aria-label]");
-      let score = 0;
-      for (const el of labels) {
-        const t = (el.getAttribute("aria-label") || "").trim();
-        if (/^\s*\[/.test(t)) score++; // conta itens com colchete = espaços da L2
-      }
-      if (score > melhorScore) { melhorScore = score; melhor = n; }
-    }
-    return melhorScore > 0 ? melhor : null;
+  // Extrai o nome limpo de um espaço a partir do seu elemento [role="link"].
+  function nomeDoLink(link) {
+    let t = (link.innerText || "").replace(/\s+/g, " ").trim();
+    t = t.replace(BADGE_NAOLIDAS, "").replace(TIPO_SUFIXO, "").trim();
+    return t;
   }
 
-  // Lê os espaços da barra lateral: retorna [{el, nome}]. Ancora em role/aria.
+  // Listas que contêm espaços: role="list" com rótulo "Lista de conversas…"
+  // (seções personalizadas e a seção Espaços). Exclui "Mensagens diretas".
+  function listasDeEspacos() {
+    return [...document.querySelectorAll('[role="list"]')].filter((n) => {
+      const l = semAcento(n.getAttribute("aria-label") || "");
+      const eConversa = l.includes("lista de conversas") || l.includes("conversation list") || l.includes("list of conversations");
+      const eDM = l.includes("mensagens diretas") || l.includes("direct message");
+      return eConversa && !eDM;
+    });
+  }
+
+  // Lê os espaços da barra lateral: retorna [{el, nome}]. Cada espaço é um
+  // [role="listitem"] com um [role="link"] dentro; o nome vem do texto do link.
   function lerEspacos() {
     const vistos = new Map();
-    const raiz = acharSidebar() || document; // escopo: só a barra lateral
-    const cands = raiz.querySelectorAll('[role="listitem"] [aria-label], a[aria-label], [role="option"][aria-label], [role="treeitem"][aria-label]');
-    for (const el of cands) {
-      const nome = (el.getAttribute("aria-label") || "").trim();
-      if (!nome) continue;
-      // Fora barra superior/cabeçalho e ruído de UI.
-      if (el.closest('[role="banner"],header')) continue;
-      if (NAO_E_ESPACO.test(nome)) continue;
-      if (/^(mais opc|more option|adicionar|add |nova |new )/i.test(nome)) continue;
-      if (nome.length > 120) continue; // dicas/tooltips longos não são espaços
-      const linha = el.closest('[role="listitem"],[role="option"],[role="treeitem"]') || el;
-      if (!vistos.has(nome)) vistos.set(nome, linha);
+    for (const lista of listasDeEspacos()) {
+      for (const it of lista.querySelectorAll('[role="listitem"]')) {
+        const link = it.querySelector('[role="link"]');
+        if (!link) continue;
+        const nome = nomeDoLink(link);
+        if (!nome) continue;
+        if (!vistos.has(nome)) vistos.set(nome, link); // link = elemento arrastável
+      }
     }
     return Array.from(vistos, ([nome, el]) => ({ nome, el }));
   }
 
-  // Nomes das seções personalizadas já existentes (para idempotência).
+  // Nomes das seções já existentes (idempotência). Cabeçalho = div[role="button"]
+  // com o nome como texto; ignora os fixos (Espaços, Mensagens diretas, Apps…).
   function lerSecoesExistentes() {
     const nomes = new Set();
-    // Cabeçalhos de seção geralmente têm role e o nome como texto/aria.
-    const cands = document.querySelectorAll('[role="heading"], [aria-expanded], [role="button"][aria-label]');
-    for (const el of cands) {
-      const txt = (el.innerText || el.getAttribute("aria-label") || "").trim();
-      if (!txt) continue;
-      if (TXT.espacos.some((e) => semAcento(txt) === semAcento(e))) continue;
-      // Heurística: seção personalizada é curta e não é um espaço.
-      if (txt.length <= 40 && !/\n/.test(txt)) nomes.add(txt);
+    for (const b of document.querySelectorAll('div[role="button"]')) {
+      const txt = (b.innerText || "").replace(/\n/g, " ").trim();
+      if (!txt || txt.length > 40 || /^\d+$/.test(txt)) continue;
+      if (CABECALHOS_FIXOS.includes(semAcento(txt))) continue;
+      if (!temAcoesSecaoPerto(b)) continue; // só cabeçalhos de seção de verdade
+      nomes.add(txt);
     }
     return nomes;
   }
@@ -211,7 +250,8 @@
 
   async function passoCriarSecao(nome) {
     await abrirMenuEspacos();
-    const item = acharItemPorTexto(TXT.criarSecao);
+    // Evita "Criar seção de reunião", que também contém "criar seção".
+    const item = acharItemPorTexto(TXT.criarSecao, /reuni|meeting/);
     if (!item) { await fechar(); throw new Error('Não achei "Criar seção" no menu.'); }
     clicar(item);
     await dorme(500);
@@ -273,15 +313,9 @@
     return true;
   }
 
-  // Acha o elemento de destino "seção X" pelo nome (o cabeçalho onde soltar).
+  // Alvo do arraste = o cabeçalho da seção (div[role="button"] com o nome).
   function acharSecaoEl(nome) {
-    const alvo = semAcento(nome);
-    const cands = document.querySelectorAll('[role="heading"], [aria-expanded], [role="button"][aria-label], [role="listitem"]');
-    for (const el of cands) {
-      const txt = semAcento(el.innerText || el.getAttribute("aria-label") || "");
-      if (txt && (txt === alvo || txt.includes(alvo))) return el;
-    }
-    return null;
+    return cabecalhoDaSecao(nome);
   }
 
   // ===========================================================================
