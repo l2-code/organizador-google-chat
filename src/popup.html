@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Organizar barra lateral do Chat</title>
+</head>
+<body>
+  <header>
+    <h1>Organizar barra lateral do Chat</h1>
+    <p class="sub">Agrupa os espaços em seções por prefixo do nome.</p>
+  </header>
+
+  <div class="barra">
+    <button id="btnPreset" class="secundario" title="Carrega a configuração padrão da L2">Preset L2</button>
+    <button id="btnImportar" class="secundario">Importar JSON</button>
+    <button id="btnExportar" class="secundario">Exportar JSON</button>
+    <input type="file" id="arquivo" accept="application/json,.json" hidden />
+  </div>
+
+  <section>
+    <div class="secao-titulo">
+      <h2>Regras</h2>
+      <span class="dica">A ordem importa — vence a 1ª que casar.</span>
+    </div>
+    <div id="regras" class="regras"></div>
+    <button id="btnAddRegra" class="ghost">+ Adicionar regra</button>
+
+    <label class="sc">
+      Sem correspondência (espaço sem prefixo):
+      <select id="semCorrespondencia">
+        <option value="perguntar">Perguntar na pré-visualização</option>
+        <option value="ignorar">Ignorar / deixar quieto</option>
+      </select>
+    </label>
+  </section>
+
+  <section>
+    <div class="secao-titulo">
+      <h2>Pré-visualização</h2>
+      <button id="btnPreview" class="secundario">Ler espaços da aba</button>
+    </div>
+    <div id="preview" class="preview vazio">Abra o Google Chat na aba ativa e clique em "Ler espaços da aba".</div>
+  </section>
+
+  <footer>
+    <button id="btnAplicar" class="primario" disabled>Aplicar na aba do Chat</button>
+    <p id="status" class="status"></p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

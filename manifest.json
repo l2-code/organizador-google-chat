@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Organizador da barra lateral do Google Chat",
+  "version": "1.0.0",
+  "description": "Agrupa os espaços do Google Chat em seções por prefixo do nome, em um clique. Configurável por regras (JSON importável/exportável).",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://chat.google.com/*",
+    "https://mail.google.com/*"
+  ],
+  "action": {
+    "default_title": "Organizar barra lateral do Google Chat",
+    "default_popup": "src/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.google.com/*",
+        "https://mail.google.com/chat/*"
+      ],
+      "js": ["src/config.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

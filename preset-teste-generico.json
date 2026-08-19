@@ -1,0 +1,11 @@
+{
+  "nome": "Teste genérico",
+  "regras": [
+    { "casa": "contem", "texto": "#arquivo", "secao": "🗄 Arquivo" },
+    { "casa": "comeca", "texto": "#eng", "secao": "🛠 Engenharia" },
+    { "casa": "comeca", "texto": "#vendas", "secao": "💰 Vendas" },
+    { "casa": "comeca", "texto": "#mkt", "secao": "📣 Marketing" },
+    { "casa": "comeca", "texto": "#geral", "secao": "🏢 Geral" }
+  ],
+  "semCorrespondencia": "perguntar"
+}

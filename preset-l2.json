@@ -1,0 +1,15 @@
+{
+  "nome": "L2",
+  "regras": [
+    { "casa": "contem", "texto": "[OLD]", "secao": "📦 OLD" },
+    { "casa": "comeca", "texto": "[L2]", "secao": "🏢 L2" },
+    { "casa": "comeca", "texto": "[Gestão]", "secao": "🎯 Gestão" },
+    { "casa": "comeca", "texto": "[Salas]", "secao": "☕ Salas" },
+    { "casa": "comeca", "texto": "[Happy Hour]", "secao": "🍻 Happy Hour" },
+    { "casa": "comeca", "texto": "[Com convidados]", "secao": "🏠 Com convidados" },
+    { "casa": "comeca", "texto": "[Projeto]", "secao": "🚀 Projeto" },
+    { "casa": "comeca", "texto": "[Unifika]", "secao": "🧩 Unifika" },
+    { "casa": "comeca", "texto": "[Núcleo]", "secao": "🧠 Núcleo" }
+  ],
+  "semCorrespondencia": "perguntar"
+}
