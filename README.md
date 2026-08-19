@@ -69,7 +69,7 @@ A configuração da L2 está pronta em [`preset-l2.json`](preset-l2.json) — é
 
 ### Espaços de convidado (a parte que exige decisão)
 
-Regra visual, não falha: **tem colchete no começo, é nosso; não tem, é de fora** (ou é reunião do Meet, que também não deve ser mexida). Como o nome do espaço do cliente não diz de qual cliente é, esses caem em "Perguntar" e você escolhe a seção na pré-visualização (ex.: `🚪 Fundacred convida L2`) — nunca chuta.
+Regra visual, não falha: **tem colchete no começo, é nosso; não tem, é de fora** (ou é reunião do Meet, que também não deve ser mexida). Como o nome do espaço do cliente não diz de qual cliente é, esses caem em "Perguntar" e você escolhe a seção na pré-visualização (ex.: `🚪 {Cliente} convida L2`) — nunca chuta.
 
 ---
 
