@@ -17,20 +17,38 @@ O que ela **não** faz: renomear espaço, sair de espaço, mudar membro, postar,
 
 ---
 
-## Instalação (a partir do ZIP — 1 minuto)
+## Instalação
 
-Ainda não está na Chrome Web Store; instala-se como extensão descompactada, a partir do ZIP publicado nos **Releases**.
+Dados úteis para qualquer caminho:
 
-1. Baixe o arquivo **`organizador-google-chat.zip`** da [página de Releases](../../releases/latest)
-2. **Descompacte** o ZIP numa pasta que vá ficar no computador (ex.: `Documentos/extensao-chat`). O Chrome carrega a pasta descompactada, não o ZIP — se apagar a pasta, a extensão para de funcionar
-3. Abra o Chrome em **`chrome://extensions`**
-4. **Ligue o "Modo do desenvolvedor"** — a chave fica no **canto superior direito** da página. Sem ela, o botão "Carregar sem compactação" nem aparece
-5. Clique em **Carregar sem compactação** (*Load unpacked*) e selecione a **pasta descompactada** (a que contém o `manifest.json`)
-6. A extensão aparece na lista, com o ícone do Lincaz. Fixe na barra (ícone de peça de quebra-cabeça → alfinete)
+- **ID da extensão:** `ekfkifodmlpcikkemndbeabfhamneipo`
+- **URL de atualização:** `https://raw.githubusercontent.com/l2-code/organizador-google-chat/main/updates.xml`
+- **Instalador (`.crx`)** e **`.zip`** ficam na [página de Releases](../../releases/latest).
 
-> **Perfil gerenciado pela empresa:** se o topo da página disser "Seu perfil é gerenciado por l2code.com.br", a política do Google Workspace pode bloquear extensões descompactadas. Se o "Carregar sem compactação" estiver desabilitado, fale com o admin — a alternativa é publicar na Chrome Web Store (privada da organização).
+### Recomendado — Google Admin Console (toda a equipe de uma vez)
 
-> Para atualizar quando sair versão nova: baixe o ZIP novo, descompacte por cima da mesma pasta e clique no ↻ do card em `chrome://extensions`.
+Como os perfis da L2 são gerenciados por `l2code.com.br`, o admin instala para todo mundo, sem ninguém mexer:
+
+1. **admin.google.com** → **Dispositivos** → **Chrome** → **Apps e extensões** → **Usuários e navegadores**
+2. Selecione a unidade organizacional (ou a organização toda)
+3. Botão **＋** → **Adicionar app ou extensão do Chrome por ID**
+4. **ID:** `ekfkifodmlpcikkemndbeabfhamneipo` — **De um URL personalizado:** a URL de atualização acima
+5. **Política de instalação:** **Instalação forçada**
+6. Salvar. Instala sozinha na próxima sincronização do Chrome e **atualiza sozinha** a cada nova versão.
+
+> O `.crx` é o instalador usado por este fluxo. **Arrastar o `.crx` manualmente para `chrome://extensions` não funciona** — o Chrome bloqueia instalação de `.crx` fora da Web Store. Para instalação individual, use o caminho de descompactada abaixo.
+
+### Piloto / uso individual — extensão descompactada (a partir do ZIP)
+
+1. Baixe **`organizador-google-chat.zip`** da [página de Releases](../../releases/latest)
+2. **Descompacte** numa pasta fixa (o Chrome carrega a pasta, não o ZIP)
+3. `chrome://extensions` → ligue o **Modo do desenvolvedor** (canto superior direito)
+4. **Carregar sem compactação** → selecione a pasta descompactada (a que tem o `manifest.json`)
+5. Fixe o ícone do Lincaz na barra
+
+> **Perfil gerenciado:** se "Carregar sem compactação" estiver desabilitado, é a política do Workspace — use o caminho do Admin Console acima.
+>
+> Atualizar: baixe o ZIP novo, descompacte por cima da mesma pasta e clique no ↻ do card. (Ao trocar o código, **↻ no card + F5 na aba do Chat**.)
 
 ---
 
