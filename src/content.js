@@ -329,34 +329,39 @@
     origemEl.dispatchEvent(ev("dragstart", de, DragEvent, { dataTransfer: dt }));
     for (let i = 1; i <= 4; i++) { mover({ x: de.x, y: de.y + i * 6 }); await dorme(60); }
 
-    // 2) Espera o Chat minimizar as seções e RE-RESOLVE o cabeçalho de destino.
-    //    Durante o arraste o botão "Ações da seção" some, então casa só por texto.
-    await dorme(450);
-    const alvoNome = semAcento(nomeSecao);
-    const alvoEl = [...document.querySelectorAll('div[role="button"]')].find(
-      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvoNome
-    );
-    if (!alvoEl) { // não achou o destino minimizado: cancela sem soltar em lugar errado
+    // 2) Resolve o cabeçalho de destino pelo NOME e ROLA até a tela. O arraste
+    //    sintético NÃO rola sozinho: se o cabeçalho estiver fora da tela, o item
+    //    cai na seção vizinha visível (era o caso de alguns [OLD] → Espaços).
+    const acharHeader = () => {
+      const alvoNome = semAcento(nomeSecao);
+      return [...document.querySelectorAll('div[role="button"]')].find(
+        (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvoNome);
+    };
+    let alvoEl = acharHeader();
+    if (!alvoEl) {
       origemEl.dispatchEvent(ev("pointerup", de, PointerEvent));
       origemEl.dispatchEvent(ev("dragend", de, DragEvent, { dataTransfer: dt }));
-      throw new Error(`destino "${nomeSecao}" não encontrado após minimizar`);
+      throw new Error(`destino "${nomeSecao}" não encontrado`);
     }
+    alvoEl.scrollIntoView({ block: "center" });
+    await dorme(400);
+    alvoEl = acharHeader() || alvoEl; // re-acha após rolar (DOM pode reflexar)
     const ra = alvoEl.getBoundingClientRect();
     const para = { x: ra.left + ra.width / 2, y: ra.top + ra.height / 2 };
 
-    // 3) Move até o cabeçalho (posição nova) em passos e solta NELE.
-    const N = 10;
-    for (let i = 1; i <= N; i++) {
-      mover({ x: de.x + (para.x - de.x) * (i / N), y: de.y + (para.y - de.y) * (i / N) });
-      await dorme(55);
+    // 3) Aproxima o ponteiro do cabeçalho de cima para baixo e solta NO centro.
+    for (let i = 6; i >= 1; i--) {
+      mover({ x: para.x, y: para.y - i * 6 });
+      await dorme(50);
     }
     const solta = document.elementFromPoint(para.x, para.y) || alvoEl;
     solta.dispatchEvent(ev("dragover", para, DragEvent, { dataTransfer: dt }));
+    await dorme(80);
     solta.dispatchEvent(ev("drop", para, DragEvent, { dataTransfer: dt }));
     solta.dispatchEvent(ev("pointerup", para, PointerEvent));
     solta.dispatchEvent(ev("mouseup", para, MouseEvent));
     origemEl.dispatchEvent(ev("dragend", para, DragEvent, { dataTransfer: dt }));
-    await dorme(500);
+    await dorme(550);
     return true;
   }
 
