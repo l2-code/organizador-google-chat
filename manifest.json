@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Organizador da barra lateral do Google Chat",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Agrupa os espaços do Google Chat em seções por prefixo do nome, em um clique. Configurável por regras (JSON importável/exportável).",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [

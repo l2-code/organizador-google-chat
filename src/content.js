@@ -277,11 +277,12 @@
 
   // Arraste best-effort. Tenta pointer + drag HTML5. Retorna true se disparou
   // sem erro (não garante que o Chat aceitou — a reconferência valida).
-  async function arrastar(origemEl, alvoEl) {
+  // Arraste. IMPORTANTE: ao iniciar o arraste, o Google Chat MINIMIZA todas as
+  // seções — sobram só os cabeçalhos e a posição do alvo muda. Por isso o destino
+  // é re-resolvido pelo NOME depois que o arraste começa, e não antes.
+  async function arrastar(origemEl, nomeSecao) {
     const ro = origemEl.getBoundingClientRect();
-    const ra = alvoEl.getBoundingClientRect();
     const de = { x: ro.left + ro.width / 2, y: ro.top + ro.height / 2 };
-    const para = { x: ra.left + ra.width / 2, y: ra.top + Math.min(ra.height / 2, 16) };
     const dt = new DataTransfer();
 
     function ev(tipo, pt, ctor, extra) {
@@ -290,26 +291,49 @@
       if (extra && extra.dataTransfer) { try { Object.defineProperty(e, "dataTransfer", { value: dt }); } catch (_) {} }
       return e;
     }
+    const mover = (pt) => {
+      const el = document.elementFromPoint(pt.x, pt.y) || document.body;
+      el.dispatchEvent(ev("pointermove", pt, PointerEvent));
+      el.dispatchEvent(ev("mousemove", pt, MouseEvent));
+      el.dispatchEvent(ev("dragover", pt, DragEvent, { dataTransfer: dt }));
+      return el;
+    };
 
+    // 1) Inicia o arraste: pointerdown + pequenos movimentos para passar do limiar.
     origemEl.dispatchEvent(ev("pointerdown", de, PointerEvent));
     origemEl.dispatchEvent(ev("mousedown", de, MouseEvent));
-    await dorme(120);
+    await dorme(150);
     origemEl.dispatchEvent(ev("dragstart", de, DragEvent, { dataTransfer: dt }));
-    // Movimento em passos até o alvo.
-    const N = 8;
-    for (let i = 1; i <= N; i++) {
-      const pt = { x: de.x + (para.x - de.x) * (i / N), y: de.y + (para.y - de.y) * (i / N) };
-      const alvoAtual = document.elementFromPoint(pt.x, pt.y) || alvoEl;
-      alvoAtual.dispatchEvent(ev("pointermove", pt, PointerEvent));
-      alvoAtual.dispatchEvent(ev("mousemove", pt, MouseEvent));
-      alvoAtual.dispatchEvent(ev("dragover", pt, DragEvent, { dataTransfer: dt }));
-      await dorme(60);
+    for (let i = 1; i <= 4; i++) { mover({ x: de.x, y: de.y + i * 6 }); await dorme(60); }
+
+    // 2) Espera o Chat minimizar as seções e RE-RESOLVE o cabeçalho de destino.
+    //    Durante o arraste o botão "Ações da seção" some, então casa só por texto.
+    await dorme(450);
+    const alvoNome = semAcento(nomeSecao);
+    const alvoEl = [...document.querySelectorAll('div[role="button"]')].find(
+      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvoNome
+    );
+    if (!alvoEl) { // não achou o destino minimizado: cancela sem soltar em lugar errado
+      origemEl.dispatchEvent(ev("pointerup", de, PointerEvent));
+      origemEl.dispatchEvent(ev("dragend", de, DragEvent, { dataTransfer: dt }));
+      throw new Error(`destino "${nomeSecao}" não encontrado após minimizar`);
     }
-    alvoEl.dispatchEvent(ev("drop", para, DragEvent, { dataTransfer: dt }));
-    alvoEl.dispatchEvent(ev("pointerup", para, PointerEvent));
-    alvoEl.dispatchEvent(ev("mouseup", para, MouseEvent));
+    const ra = alvoEl.getBoundingClientRect();
+    const para = { x: ra.left + ra.width / 2, y: ra.top + ra.height / 2 };
+
+    // 3) Move até o cabeçalho (posição nova) em passos e solta NELE.
+    const N = 10;
+    for (let i = 1; i <= N; i++) {
+      mover({ x: de.x + (para.x - de.x) * (i / N), y: de.y + (para.y - de.y) * (i / N) });
+      await dorme(55);
+    }
+    const solta = document.elementFromPoint(para.x, para.y) || alvoEl;
+    solta.dispatchEvent(ev("dragover", para, DragEvent, { dataTransfer: dt }));
+    solta.dispatchEvent(ev("drop", para, DragEvent, { dataTransfer: dt }));
+    solta.dispatchEvent(ev("pointerup", para, PointerEvent));
+    solta.dispatchEvent(ev("mouseup", para, MouseEvent));
     origemEl.dispatchEvent(ev("dragend", para, DragEvent, { dataTransfer: dt }));
-    await dorme(400);
+    await dorme(500);
     return true;
   }
 
@@ -373,12 +397,11 @@
       const atuais = lerEspacos();
       const alvoEsp = atuais.find((e) => e.nome === p.nome);
       if (!alvoEsp) { Overlay.log(`✗ Não achei mais no DOM: "${p.nome}" (role a lista).`, "erro"); falhas++; continue; }
-      const secaoEl = acharSecaoEl(p.secao);
-      if (!secaoEl) { Overlay.log(`✗ Não achei a seção "${p.secao}".`, "erro"); falhas++; continue; }
+      if (!acharSecaoEl(p.secao)) { Overlay.log(`✗ Não achei a seção "${p.secao}".`, "erro"); falhas++; continue; }
       alvoEsp.el.scrollIntoView({ block: "center" });
-      await dorme(150);
+      await dorme(200);
       try {
-        await arrastar(alvoEsp.el, secaoEl);
+        await arrastar(alvoEsp.el, p.secao); // passa o NOME: destino é re-resolvido após o colapso
         movidos++;
         Overlay.log(`→ "${p.nome}"  ⇒  ${p.secao}`);
       } catch (e) {
