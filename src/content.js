@@ -497,29 +497,6 @@
     Overlay.log(`✓ Seção criada: ${nome}`, "ok");
   }
 
-  // Limpa seções em branco (linhas de "Nome da seção" vazias, presas em edição —
-  // resquício do bug antigo que criava seção sem nome). Cancela cada uma.
-  async function limparSecoesEmBranco() {
-    let removidas = 0;
-    for (let i = 0; i < 40; i++) {
-      const vazio = [...document.querySelectorAll('input[type="text"]')].find(
-        (e) => /nome da se|section name/i.test(e.getAttribute("placeholder") || "") &&
-               !(e.value || "").trim() && (e.offsetParent !== null || e.getClientRects().length));
-      if (!vazio) break;
-      let cont = vazio, btn = null;
-      for (let k = 0; k < 6 && cont; k++) {
-        cont = cont.parentElement; if (!cont) break;
-        btn = [...cont.querySelectorAll("button,[role=button]")].find((b) =>
-          /cancelar|cancel|descartar|discard/i.test((b.innerText || b.getAttribute("aria-label") || "")));
-        if (btn) break;
-      }
-      if (btn) clicar(btn); else vazio.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      await dorme(250);
-      removidas++;
-    }
-    if (removidas) Overlay.log(`Limpei ${removidas} seção(ões) em branco.`, "ok");
-  }
-
   // Arraste best-effort. Tenta pointer + drag HTML5. Retorna true se disparou
   // sem erro (não garante que o Chat aceitou — a reconferência valida).
   // Arraste. IMPORTANTE: ao iniciar o arraste, o Google Chat MINIMIZA todas as
@@ -605,9 +582,6 @@
     // O "Ler" já costuma ter feito isso; aqui é idempotente. Restaura no finally.
     await prepararDOM();
     try {
-
-    // Passo 0 — limpa seções em branco (resquício do bug antigo de criar sem nome).
-    await limparSecoesEmBranco();
 
     // Passo 1 — ordem alfabética (andaime).
     try {
