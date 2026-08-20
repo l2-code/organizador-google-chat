@@ -35,6 +35,10 @@
 
   const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
   const semAcento = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  // Identidade de SEÇÃO ignorando emoji, espaços e caracteres especiais — só
+  // letras/números. Assim "🏢 L2", "L2" e "🎯 L2" são a MESMA seção: trocar o
+  // emoji (ou o espaçamento) não faz a extensão achar que ela não existe e recriar.
+  const nomeBase = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
 
   // ===========================================================================
   // OVERLAY de progresso — a "falha visível". Fica no canto e loga tudo.
@@ -147,9 +151,10 @@
   // barra lateral — seção recém-criada (vazia) ou layout diferente às vezes não
   // expõe a âncora, e sem o fallback a extensão "não achava a seção" que existe.
   function cabecalhoDaSecao(nome) {
-    const alvo = semAcento(nome);
+    const alvo = nomeBase(nome);
+    if (!alvo) return null; // nome só com emoji/espaço não identifica seção
     const cands = [...document.querySelectorAll('div[role="button"]')].filter(
-      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvo);
+      (b) => nomeBase((b.innerText || "").replace(/\n/g, " ").trim()) === alvo);
     if (!cands.length) return null;
     const ancorado = cands.find(temAcoesSecaoPerto);
     if (ancorado) return ancorado;
@@ -612,7 +617,7 @@
     const necessarias = L2.secoesNecessarias(plano, config);
     for (const s of necessarias) {
       if (Overlay.cancelado()) return finalizar();
-      const jaTem = Array.from(existentes).some((x) => semAcento(x) === semAcento(s));
+      const jaTem = Array.from(existentes).some((x) => nomeBase(x) === nomeBase(s));
       if (jaTem) { Overlay.log(`• Seção já existe: ${s}`); continue; }
       try { await passoCriarSecao(s); existentes.add(s); }
       catch (e) { Overlay.log(`✗ Falha ao criar "${s}": ${e.message}`, "erro"); }
@@ -630,7 +635,7 @@
         continue;
       }
       // Já está na seção certa? Não mexe (respeita organização manual / re-execução).
-      if (semAcento(secaoAtual.get(p.nome) || "") === semAcento(p.secao)) {
+      if (nomeBase(secaoAtual.get(p.nome) || "") === nomeBase(p.secao)) {
         jaOk++; continue;
       }
       // Reconfere posição atual do espaço (lista virtualizada muda).
