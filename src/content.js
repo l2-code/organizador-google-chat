@@ -142,13 +142,19 @@
     return false;
   }
 
-  // Cabeçalho de uma seção = div[role="button"] com o nome como texto, ancorado
-  // no botão "Ações da seção".
+  // Cabeçalho de uma seção = div[role="button"] com o nome como texto. Prefere o
+  // cabeçalho real (ancorado no botão "Ações da seção"), mas cai num fallback pela
+  // barra lateral — seção recém-criada (vazia) ou layout diferente às vezes não
+  // expõe a âncora, e sem o fallback a extensão "não achava a seção" que existe.
   function cabecalhoDaSecao(nome) {
     const alvo = semAcento(nome);
-    return [...document.querySelectorAll('div[role="button"]')].find(
-      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvo && temAcoesSecaoPerto(b)
-    ) || null;
+    const cands = [...document.querySelectorAll('div[role="button"]')].filter(
+      (b) => semAcento((b.innerText || "").replace(/\n/g, " ").trim()) === alvo);
+    if (!cands.length) return null;
+    const ancorado = cands.find(temAcoesSecaoPerto);
+    if (ancorado) return ancorado;
+    const naLateral = cands.find((b) => !b.closest('[role="main"],main'));
+    return naLateral || cands[0];
   }
 
   // Botão ⋮ ("Ações da seção") da seção "Espaços" — onde ficam Criar seção,
@@ -453,25 +459,65 @@
     const item = acharItemPorTexto(TXT.criarSecao, /reuni|meeting/);
     if (!item) { await fechar(); throw new Error('Não achei "Criar seção" no menu.'); }
     clicar(item);
-    await dorme(500);
-    // Campo de texto do diálogo.
-    const campo = document.querySelector('input[type="text"]:not([readonly]), [role="dialog"] input, [role="textbox"][contenteditable="true"]');
+    await dorme(600);
+    // O Chat foca um input com placeholder "Nome da seção". NÃO usar um
+    // querySelector genérico de input[type=text]: o 1º da página é a busca
+    // "Pesquisar chat" — o nome ia pra lá e a seção nascia EM BRANCO (bug).
+    const ehBusca = (el) => /pesquisar|search/i.test(
+      (el.getAttribute("aria-label") || "") + " " + (el.getAttribute("placeholder") || ""));
+    const visivel = (el) => el && (el.offsetParent !== null || el.getClientRects().length);
+    let campo = null;
+    const ae = document.activeElement;
+    if (ae && ae.tagName === "INPUT" && !ehBusca(ae)) campo = ae;
+    if (!campo) campo = [...document.querySelectorAll('input[type="text"]')].find(
+      (e) => /nome da se|section name/i.test(e.getAttribute("placeholder") || "") && visivel(e));
     if (!campo) { await fechar(); throw new Error("Não achei o campo de nome da seção."); }
     campo.focus();
-    // Digita via execCommand/valor + eventos, para o Chat registrar.
-    if ("value" in campo) {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-      setter.call(campo, nome);
-      campo.dispatchEvent(new Event("input", { bubbles: true }));
-    } else {
-      campo.textContent = nome;
-      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(campo, nome);
+    campo.dispatchEvent(new Event("input", { bubbles: true }));
+    campo.dispatchEvent(new Event("change", { bubbles: true }));
+    await dorme(350);
+    // Confirmar com "Salvar" — procura ancorado no campo (junto de "Cancelar"),
+    // depois global, e por fim Enter.
+    let salvar = null, cont = campo;
+    for (let k = 0; k < 6 && cont; k++) {
+      cont = cont.parentElement; if (!cont) break;
+      salvar = [...cont.querySelectorAll("button,[role=button]")].find((b) => {
+        const t = (b.innerText || b.getAttribute("aria-label") || "").trim();
+        return /^(salvar|save|concluído|concluir|criar|done|create)$/i.test(t);
+      });
+      if (salvar) break;
     }
-    await dorme(300);
-    const ok = acharItemPorTexto(TXT.confirmar);
-    if (ok) { clicar(ok); } else { campo.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); }
-    await dorme(700);
+    if (!salvar) salvar = acharItemPorTexto(["Salvar", "Save", "Concluído", "Criar", "Done", "Create"], /cancel/);
+    if (salvar) { clicar(salvar); } else { campo.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); }
+    await dorme(800);
+    // Garante que a seção NOMEADA existe — senão foi criada em branco (não loga sucesso falso).
+    if (!cabecalhoDaSecao(nome)) throw new Error(`o nome "${nome}" não colou (seção em branco)`);
     Overlay.log(`✓ Seção criada: ${nome}`, "ok");
+  }
+
+  // Limpa seções em branco (linhas de "Nome da seção" vazias, presas em edição —
+  // resquício do bug antigo que criava seção sem nome). Cancela cada uma.
+  async function limparSecoesEmBranco() {
+    let removidas = 0;
+    for (let i = 0; i < 40; i++) {
+      const vazio = [...document.querySelectorAll('input[type="text"]')].find(
+        (e) => /nome da se|section name/i.test(e.getAttribute("placeholder") || "") &&
+               !(e.value || "").trim() && (e.offsetParent !== null || e.getClientRects().length));
+      if (!vazio) break;
+      let cont = vazio, btn = null;
+      for (let k = 0; k < 6 && cont; k++) {
+        cont = cont.parentElement; if (!cont) break;
+        btn = [...cont.querySelectorAll("button,[role=button]")].find((b) =>
+          /cancelar|cancel|descartar|discard/i.test((b.innerText || b.getAttribute("aria-label") || "")));
+        if (btn) break;
+      }
+      if (btn) clicar(btn); else vazio.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await dorme(250);
+      removidas++;
+    }
+    if (removidas) Overlay.log(`Limpei ${removidas} seção(ões) em branco.`, "ok");
   }
 
   // Arraste best-effort. Tenta pointer + drag HTML5. Retorna true se disparou
@@ -559,6 +605,9 @@
     // O "Ler" já costuma ter feito isso; aqui é idempotente. Restaura no finally.
     await prepararDOM();
     try {
+
+    // Passo 0 — limpa seções em branco (resquício do bug antigo de criar sem nome).
+    await limparSecoesEmBranco();
 
     // Passo 1 — ordem alfabética (andaime).
     try {
