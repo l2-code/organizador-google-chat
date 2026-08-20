@@ -502,6 +502,33 @@
     Overlay.log(`✓ Seção criada: ${nome}`, "ok");
   }
 
+  // Cancela LINHAS de criação de seção vazias (input "Nome da seção" aberto e sem
+  // texto) — resquício do bug antigo, que deixava a linha em edição sem salvar.
+  // SEGURO: só age em input de edição; clica o "Cancelar" EXATO da própria linha
+  // e para se não achar. Seção salva NÃO tem esse botão, então nunca é deletada.
+  // (Verificado ao vivo: cancela a linha e não perde nenhuma seção nomeada.)
+  async function limparLinhasVazias() {
+    let n = 0;
+    for (let i = 0; i < 30; i++) {
+      const inp = [...document.querySelectorAll('input[type="text"]')].find(
+        (e) => /nome da se|section name/i.test(e.getAttribute("placeholder") || "") &&
+               !(e.value || "").trim() && (e.offsetParent !== null || e.getClientRects().length));
+      if (!inp) break;
+      let cont = inp, btn = null;
+      for (let k = 0; k < 6 && cont; k++) {
+        cont = cont.parentElement; if (!cont) break;
+        btn = [...cont.querySelectorAll("button,[role=button]")].find(
+          (b) => /^(cancelar|cancel|descartar|discard)$/i.test((b.innerText || b.getAttribute("aria-label") || "").trim()));
+        if (btn) break;
+      }
+      if (!btn) break; // sem "Cancelar" exato: não arrisca, para
+      clicar(btn);
+      await dorme(300);
+      n++;
+    }
+    if (n) Overlay.log(`Descartei ${n} linha(s) de seção vazias.`, "ok");
+  }
+
   // Arraste best-effort. Tenta pointer + drag HTML5. Retorna true se disparou
   // sem erro (não garante que o Chat aceitou — a reconferência valida).
   // Arraste. IMPORTANTE: ao iniciar o arraste, o Google Chat MINIMIZA todas as
@@ -587,6 +614,10 @@
     // O "Ler" já costuma ter feito isso; aqui é idempotente. Restaura no finally.
     await prepararDOM();
     try {
+
+    // Passo 0 — descarta linhas de seção vazias (resquício do bug antigo). Seguro:
+    // só cancela input de edição, nunca deleta seção salva.
+    await limparLinhasVazias();
 
     // Passo 1 — ordem alfabética (andaime).
     try {
